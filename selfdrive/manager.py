@@ -224,7 +224,6 @@ if TICI:
 car_started_processes = [
   'controlsd',
   'plannerd',
-  'loggerd',
   'radard',
   'calibrationd',
   'paramsd',
