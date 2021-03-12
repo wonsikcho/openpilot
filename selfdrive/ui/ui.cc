@@ -266,7 +266,7 @@ static void update_alert(UIState *s) {
       // car is started, but controlsState hasn't been seen at all
       scene.alert_text1 = "openpilot Unavailable";
       scene.alert_text2 = "Waiting for controls to start";
-      scene.alert_size = cereal::ControlsState::AlertSize::MID;
+      // scene.alert_size = cereal::ControlsState::AlertSize::MID;
     } else if ((s->sm->frame - cs_frame) > 5 * UI_FREQ) {
       // car is started, but controls is lagging or died
       if (scene.alert_text2 != "Controls Unresponsive") {

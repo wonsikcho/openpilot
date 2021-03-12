@@ -400,7 +400,7 @@ def thermald_thread():
       ui_running_prev = ui_running
 
     msg.deviceState.chargingError = current_filter.x > 0. and msg.deviceState.batteryPercent < 90  # if current is positive, then battery is being discharged
-    msg.deviceState.started = started_ts is not None
+    msg.deviceState.started = True
     msg.deviceState.startedMonoTime = int(1e9*(started_ts or 0))
 
     msg.deviceState.thermalStatus = thermal_status
