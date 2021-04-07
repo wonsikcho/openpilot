@@ -72,10 +72,7 @@ void run_model(ModelState &model, VisionIpcClient &vipc_client) {
   SubMaster sm({"lateralPlan", "roadCameraState"});
 
   // setup filter to track dropped frames
-  const float dt = 1. / MODEL_FREQ;
-  const float ts = 10.0;  // filter time constant (s)
-  const float frame_filter_k = (dt / ts) / (1. + dt / ts);
-  float frames_dropped = 0;
+  FirstOrderFilter frame_dropped_filter(0., 10., 1. / MODEL_FREQ);
 
   uint32_t frame_id = 0, last_vipc_frame_id = 0;
   double last = 0;
@@ -114,15 +111,19 @@ void run_model(ModelState &model, VisionIpcClient &vipc_client) {
 
       // tracked dropped frames
       uint32_t vipc_dropped_frames = extra.frame_id - last_vipc_frame_id - 1;
-      frames_dropped = (1. - frame_filter_k) * frames_dropped + frame_filter_k * (float)std::min(vipc_dropped_frames, 10U);
-      if (run_count < 10) frames_dropped = 0;  // let frame drops warm up
+      float frames_dropped = frame_dropped_filter.update((float)std::min(vipc_dropped_frames, 10U));
+      if (run_count < 10) { // let frame drops warm up
+        frame_dropped_filter.reset(0);
+        frames_dropped = 0.;
+      }
+      
       float frame_drop_ratio = frames_dropped / (1 + frames_dropped);
 
       model_publish(pm, extra.frame_id, frame_id, frame_drop_ratio, model_buf, extra.timestamp_eof, model_execution_time,
                     kj::ArrayPtr<const float>(model.output.data(), model.output.size()));
       posenet_publish(pm, extra.frame_id, vipc_dropped_frames, model_buf, extra.timestamp_eof);
 
-      LOGD("model process: %.2fms, from last %.2fms, vipc_frame_id %u, frame_id, %u, frame_drop %.3f", mt2 - mt1, mt1 - last, extra.frame_id, frame_id, frame_drop_ratio);
+      //printf("model process: %.2fms, from last %.2fms, vipc_frame_id %u, frame_id, %u, frame_drop %.3f\n", mt2 - mt1, mt1 - last, extra.frame_id, frame_id, frame_drop_ratio);
       last = mt1;
       last_vipc_frame_id = extra.frame_id;
     }

@@ -9,7 +9,7 @@ from parameterized import parameterized_class
 from cereal import log, car
 from selfdrive.car.fingerprints import all_known_cars
 from selfdrive.car.car_helpers import interfaces
-from selfdrive.test.test_car_models import routes, non_tested_cars
+from selfdrive.test.test_routes import routes, non_tested_cars
 from selfdrive.test.openpilotci import get_url
 from tools.lib.logreader import LogReader
 
@@ -22,7 +22,6 @@ ROUTES = {v['carFingerprint']: k for k, v in routes.items() if v['enableCamera']
 
 # TODO: get updated routes for these cars
 ignore_can_valid = [
-  "VOLKSWAGEN GOLF",
   "ACURA ILX 2016 ACURAWATCH PLUS",
   "TOYOTA PRIUS 2017",
   "TOYOTA COROLLA 2017",
@@ -85,13 +84,14 @@ class TestCarModel(unittest.TestCase):
     self.assertGreater(self.CP.mass, 1)
     self.assertGreater(self.CP.steerRateCost, 1e-3)
 
-    tuning = self.CP.lateralTuning.which()
-    if tuning == 'pid':
-      self.assertTrue(len(self.CP.lateralTuning.pid.kpV))
-    elif tuning == 'lqr':
-      self.assertTrue(len(self.CP.lateralTuning.lqr.a))
-    elif tuning == 'indi':
-      self.assertTrue(len(self.CP.lateralTuning.indi.outerLoopGainV))
+    if self.CP.steerControlType != car.CarParams.SteerControlType.angle:
+      tuning = self.CP.lateralTuning.which()
+      if tuning == 'pid':
+        self.assertTrue(len(self.CP.lateralTuning.pid.kpV))
+      elif tuning == 'lqr':
+        self.assertTrue(len(self.CP.lateralTuning.lqr.a))
+      elif tuning == 'indi':
+        self.assertTrue(len(self.CP.lateralTuning.indi.outerLoopGainV))
 
     self.assertTrue(self.CP.enableCamera)
 

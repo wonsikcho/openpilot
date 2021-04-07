@@ -71,12 +71,11 @@ void safety_setter_thread() {
       return;
     };
 
-    std::vector<char> value_vin = Params().read_db_bytes("CarVin");
+    std::string value_vin = Params().get("CarVin");
     if (value_vin.size() > 0) {
       // sanity check VIN format
       assert(value_vin.size() == 17);
-      std::string str_vin(value_vin.begin(), value_vin.end());
-      LOGW("got CarVin %s", str_vin.c_str());
+      LOGW("got CarVin %s", value_vin.c_str());
       break;
     }
     util::sleep_for(100);
@@ -85,7 +84,7 @@ void safety_setter_thread() {
   // VIN query done, stop listening to OBDII
   panda->set_safety_model(cereal::CarParams::SafetyModel::NO_OUTPUT);
 
-  std::vector<char> params;
+  std::string params;
   LOGW("waiting for params to set safety model");
   while (true) {
     if (do_exit || !panda->connected){
@@ -93,17 +92,14 @@ void safety_setter_thread() {
       return;
     };
 
-    params = Params().read_db_bytes("CarParams");
+    params = Params().get("CarParams");
     if (params.size() > 0) break;
     util::sleep_for(100);
   }
   LOGW("got %d bytes CarParams", params.size());
 
-  // format for board, make copy due to alignment issues, will be freed on out of scope
-  auto amsg = kj::heapArray<capnp::word>((params.size() / sizeof(capnp::word)) + 1);
-  memcpy(amsg.begin(), params.data(), params.size());
-
-  capnp::FlatArrayMessageReader cmsg(amsg);
+  AlignedBuffer aligned_buf;
+  capnp::FlatArrayMessageReader cmsg(aligned_buf.align(params.data(), params.size()));
   cereal::CarParams::Reader car_params = cmsg.getRoot<cereal::CarParams>();
   cereal::CarParams::SafetyModel safety_model = car_params.getSafetyModel();
 
@@ -136,7 +132,7 @@ bool usb_connect() {
   }
 
   if (auto fw_sig = tmp_panda->get_firmware_version(); fw_sig) {
-    params.write_db_value("PandaFirmware", (const char *)fw_sig->data(), fw_sig->size());
+    params.put("PandaFirmware", (const char *)fw_sig->data(), fw_sig->size());
 
     // Convert to hex for offroad
     char fw_sig_hex_buf[16] = {0};
@@ -146,13 +142,13 @@ bool usb_connect() {
       fw_sig_hex_buf[2*i+1] = NIBBLE_TO_HEX((uint8_t)fw_sig_buf[i] & 0xF);
     }
 
-    params.write_db_value("PandaFirmwareHex", fw_sig_hex_buf, 16);
+    params.put("PandaFirmwareHex", fw_sig_hex_buf, 16);
     LOGW("fw signature: %.*s", 16, fw_sig_hex_buf);
   } else { return false; }
 
   // get panda serial
   if (auto serial = tmp_panda->get_serial(); serial) {
-    params.write_db_value("PandaDongleId", serial->c_str(), serial->length());
+    params.put("PandaDongleId", serial->c_str(), serial->length());
     LOGW("panda serial: %s", serial->c_str());
   } else { return false; }
 
@@ -164,13 +160,18 @@ bool usb_connect() {
 #endif
 
   if (tmp_panda->has_rtc){
+    setenv("TZ","UTC",1);
     struct tm sys_time = get_time();
     struct tm rtc_time = tmp_panda->get_rtc();
 
     if (!time_valid(sys_time) && time_valid(rtc_time)) {
-      LOGE("System time wrong, setting from RTC");
+      LOGE("System time wrong, setting from RTC. "
+           "System: %d-%02d-%02d %02d:%02d:%02d RTC: %d-%02d-%02d %02d:%02d:%02d",
+           sys_time.tm_year + 1900, sys_time.tm_mon + 1, sys_time.tm_mday,
+           sys_time.tm_hour, sys_time.tm_min, sys_time.tm_sec,
+           rtc_time.tm_year + 1900, rtc_time.tm_mon + 1, rtc_time.tm_mday,
+           rtc_time.tm_hour, rtc_time.tm_min, rtc_time.tm_sec);
 
-      setenv("TZ","UTC",1);
       const struct timeval tv = {mktime(&rtc_time), 0};
       settimeofday(&tv, 0);
     }
@@ -201,7 +202,7 @@ void can_recv(PubMaster &pm) {
 void can_send_thread(bool fake_send) {
   LOGD("start send thread");
 
-  kj::Array<capnp::word> buf = kj::heapArray<capnp::word>(1024);
+  AlignedBuffer aligned_buf;
   Context * context = Context::create();
   SubSocket * subscriber = SubSocket::create(context, "sendcan");
   assert(subscriber != NULL);
@@ -217,13 +218,8 @@ void can_send_thread(bool fake_send) {
       }
       continue;
     }
-    const size_t size = (msg->getSize() / sizeof(capnp::word)) + 1;
-    if (buf.size() < size) {
-      buf = kj::heapArray<capnp::word>(size);
-    }
-    memcpy(buf.begin(), msg->getData(), msg->getSize());
 
-    capnp::FlatArrayMessageReader cmsg(buf.slice(0, size));
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(msg));
     cereal::Event::Reader event = cmsg.getRoot<cereal::Event>();
 
     //Dont send if older than 1 second
@@ -321,9 +317,9 @@ void panda_state_thread(bool spoofing_started) {
 
     // clear VIN, CarParams, and set new safety on car start
     if (ignition && !ignition_last) {
-      int result = params.delete_db_value("CarVin");
+      int result = params.remove("CarVin");
       assert((result == 0) || (result == ERR_NO_VALUE));
-      result = params.delete_db_value("CarParams");
+      result = params.remove("CarParams");
       assert((result == 0) || (result == ERR_NO_VALUE));
 
       if (!safety_setter_thread_running) {
@@ -337,9 +333,23 @@ void panda_state_thread(bool spoofing_started) {
     // Write to rtc once per minute when no ignition present
     if ((panda->has_rtc) && !ignition && (no_ignition_cnt % 120 == 1)){
       // Write time to RTC if it looks reasonable
+      setenv("TZ","UTC",1);
       struct tm sys_time = get_time();
+
       if (time_valid(sys_time)){
-        panda->set_rtc(sys_time);
+        struct tm rtc_time = panda->get_rtc();
+        double seconds = difftime(mktime(&rtc_time), mktime(&sys_time));
+
+        if (std::abs(seconds) > 1.1) {
+          panda->set_rtc(sys_time);
+          LOGW("Updating panda RTC. dt = %.2f "
+               "System: %d-%02d-%02d %02d:%02d:%02d RTC: %d-%02d-%02d %02d:%02d:%02d",
+               seconds,
+               sys_time.tm_year + 1900, sys_time.tm_mon + 1, sys_time.tm_mday,
+               sys_time.tm_hour, sys_time.tm_min, sys_time.tm_sec,
+               rtc_time.tm_year + 1900, rtc_time.tm_mon + 1, rtc_time.tm_mday,
+               rtc_time.tm_hour, rtc_time.tm_min, rtc_time.tm_sec);
+        }
       }
     }
 
@@ -371,6 +381,7 @@ void panda_state_thread(bool spoofing_started) {
     ps.setPandaType(panda->hw_type);
     ps.setUsbPowerMode(cereal::PandaState::UsbPowerMode(pandaState.usb_power_mode));
     ps.setSafetyModel(cereal::CarParams::SafetyModel(pandaState.safety_model));
+    ps.setSafetyParam(pandaState.safety_param);
     ps.setFanSpeedRpm(fan_speed_rpm);
     ps.setFaultStatus(cereal::PandaState::FaultStatus(pandaState.fault_status));
     ps.setPowerSaveEnabled((bool)(pandaState.power_save_enabled));
@@ -506,7 +517,7 @@ void pigeon_thread() {
     for (const auto& [msg_cls, max_dt] : cls_max_dt) {
       int64_t dt = (int64_t)nanos_since_boot() - (int64_t)last_recv_time[msg_cls];
       if (ignition_last && ignition && dt > max_dt) {
-        LOGE("ublox receive timeout, msg class: 0x%02x, dt %llu, resetting panda GPS", msg_cls, dt);
+        LOG("ublox receive timeout, msg class: 0x%02x, dt %llu", msg_cls, dt);
         // TODO: turn on reset after verification of logs
         // need_reset = true;
       }
