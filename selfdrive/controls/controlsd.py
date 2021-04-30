@@ -409,7 +409,10 @@ class Controls:
     actuators.gas, actuators.brake = self.LoC.update(self.active, CS, v_acc_sol, long_plan.vTargetFuture, a_acc_sol, self.CP)
 
     # Steering PID loop and lateral MPC
-    yaw_rate_curvature = self.sm['liveLocationKalman'].angularVelocityCalibrated.value[2]
+    if len(self.sm['liveLocationKalman'].angularVelocityCalibrated.value) > 2:
+      yaw_rate_curvature = self.sm['liveLocationKalman'].angularVelocityCalibrated.value[2]
+    else:
+      yaw_rate_curvature = math.nan
     actuators.steer, actuators.steeringAngleDeg, lac_log = self.LaC.update(self.active, CS, self.CP, self.VM, params, lat_plan,
                                                                            yaw_rate_curvature=yaw_rate_curvature)
 
