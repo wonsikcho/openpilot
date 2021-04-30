@@ -80,11 +80,18 @@ class LatControlINDI():
 
     return self.sat_count > self.sat_limit
 
-  def update(self, active, CS, CP, VM, params, lat_plan):
+  def update(self, active, CS, CP, VM, params, lat_plan, yaw_rate_curvature=math.nan):
     self.speed = CS.vEgo
     # Update Kalman filter
-    y = np.array([[math.radians(CS.steeringAngleDeg)], [math.radians(CS.steeringRateDeg)]])
+    measured_steering_angle = math.radians(CS.steeringAngleDeg - params.angleOffsetDeg)
+    if not math.isnan(yaw_rate_curvature):
+      alpha = interp(CS.vEgo, [5., 10.], [0., 1.])
+      actual_steering_angle = alpha*VM.get_steer_from_curvature(-yaw_rate_curvature) + (1-alpha)*measured_steering_angle
+    else:
+      actual_steering_angle = measured_steering_angle
+    y = np.array([[actual_steering_angle], [math.radians(CS.steeringRateDeg)]])
     self.x = np.dot(self.A_K, self.x) + np.dot(self.K, y)
+
 
     indi_log = log.ControlsState.LateralINDIState.new_message()
     indi_log.steeringAngleDeg = math.degrees(self.x[0])
@@ -97,7 +104,7 @@ class LatControlINDI():
       self.delayed_output = 0.0
     else:
       steers_des = VM.get_steer_from_curvature(-lat_plan.curvature, CS.vEgo)
-      steers_des += math.radians(params.angleOffsetDeg)
+
 
       rate_des = VM.get_steer_from_curvature(-lat_plan.curvatureRate, CS.vEgo)
 
