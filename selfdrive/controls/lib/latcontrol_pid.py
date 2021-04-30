@@ -1,4 +1,5 @@
 import math
+from common.numpy_fast import interp
 
 from selfdrive.controls.lib.pid import PIController
 from selfdrive.controls.lib.drive_helpers import get_steer_max
@@ -15,9 +16,16 @@ class LatControlPID():
   def reset(self):
     self.pid.reset()
 
-  def update(self, active, CS, CP, VM, params, lat_plan, yaw_rate_curvature=None):
+  def update(self, active, CS, CP, VM, params, lat_plan, yaw_rate_curvature=math.nan):
+    measured_steering_angle = math.radians(CS.steeringAngleDeg - params.angleOffsetDeg)
+    if not math.isnan(yaw_rate_curvature):
+      alpha = interp(CS.vEgo, [5., 10.], [0., 1.])
+      actual_steering_angle = alpha*VM.get_steer_from_curvature(-yaw_rate_curvature, CS.vEgo) + (1-alpha)*measured_steering_angle
+    else:
+      actual_steering_angle = measured_steering_angle
+
     pid_log = log.ControlsState.LateralPIDState.new_message()
-    pid_log.steeringAngleDeg = float(CS.steeringAngleDeg)
+    pid_log.steeringAngleDeg = float(math.degrees(actual_steering_angle))
     pid_log.steeringRateDeg = float(CS.steeringRateDeg)
 
     angle_steers_des_no_offset = math.degrees(VM.get_steer_from_curvature(-lat_plan.curvature, CS.vEgo))
@@ -39,7 +47,7 @@ class LatControlPID():
       deadzone = 0.0
 
       check_saturation = (CS.vEgo > 10) and not CS.steeringRateLimited and not CS.steeringPressed
-      output_steer = self.pid.update(angle_steers_des, CS.steeringAngleDeg, check_saturation=check_saturation, override=CS.steeringPressed,
+      output_steer = self.pid.update(angle_steers_des, actual_steering_angle, check_saturation=check_saturation, override=CS.steeringPressed,
                                      feedforward=steer_feedforward, speed=CS.vEgo, deadzone=deadzone)
       pid_log.active = True
       pid_log.p = self.pid.p
