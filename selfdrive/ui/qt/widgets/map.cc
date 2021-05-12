@@ -194,6 +194,18 @@ void MapWindow::timerUpdate() {
         modelPathSource["data"] = QVariant::fromValue<QMapbox::Feature>(feature2);
         m_map->updateSource("modelPathSource", modelPathSource);
       }
+
+      auto points = segment.path();
+      if (segment.nextRouteSegment().isValid()){
+        points.append(segment.nextRouteSegment().path());
+      }
+
+      auto line = coordinates_to_camera_view(
+        location.getCalibratedOrientationECEF(),
+        location.getPositionECEF(),
+        points);
+      emit updateAR(line);
+
     }
     update();
   }

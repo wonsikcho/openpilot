@@ -33,6 +33,8 @@ OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
     settings.setAccessToken(token);
     map = new MapWindow(settings);
     split->addWidget(map);
+
+    connect(map, SIGNAL(updateAR(QList<Eigen::Vector3d>)), nvg, SLOT(updateAR(QList<Eigen::Vector3d>)));
   }
 #endif
 
@@ -234,4 +236,19 @@ void NvgWindow::paintGL() {
     LOGW("slow frame time: %.2f", dt);
   }
   prev_draw_t = cur_draw_t;
+}
+
+
+void NvgWindow::updateAR(QList<Eigen::Vector3d> path) {
+  std::vector<vec3> points;
+  float y0 = path.size() ? path[0][1] : 0;
+
+  if (path.size()){
+    points.push_back({{3, 0, 0}});
+  }
+  for (auto &c : path) {
+    points.push_back({{(float)c[0], (float)c[1] - y0, 0}});
+  }
+
+  QUIState::ui_state.ar_nav_points = points;
 }

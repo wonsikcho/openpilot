@@ -1,8 +1,40 @@
 #include "selfdrive/ui/qt/widgets/map_helpers.h"
 
+#include <QDebug>
 
 QGeoCoordinate to_QGeoCoordinate(const QMapbox::Coordinate &in) {
   return QGeoCoordinate(in.first, in.second);
+}
+
+ QList<Eigen::Vector3d> coordinates_to_camera_view(
+  const cereal::LiveLocationKalman::Measurement::Reader &calibratedOrientationECEF,
+  const cereal::LiveLocationKalman::Measurement::Reader &positionECEF,
+  const QList<QGeoCoordinate> &coordinates) {
+  QList<Eigen::Vector3d> line;
+
+  Eigen::Vector3d local_ecef(positionECEF.getValue()[0], positionECEF.getValue()[1], positionECEF.getValue()[2]);
+  double alt = ecef2geodetic({.x = local_ecef[0], .y = local_ecef[1], .z = local_ecef[2]}).alt;
+
+  Eigen::Vector3d orient(calibratedOrientationECEF.getValue()[0], calibratedOrientationECEF.getValue()[1], calibratedOrientationECEF.getValue()[2]);
+  Eigen::Matrix3d local_from_ecef = euler2rot(orient);
+  qDebug() << "";
+
+  for (auto &coord : coordinates) {
+    Geodetic g = {.lat = coord.latitude(), .lon = coord.longitude(), .alt = alt};
+    ECEF e = geodetic2ecef(g);
+    Eigen::Vector3d local = local_from_ecef * (e.to_vector() - local_ecef);
+    if (local[0] < 5) {
+        continue;
+    }
+
+    if (local[0] > 500) {
+        break;
+    }
+    qDebug() << local[0] << local[1] << local[2];
+    line.push_back(local);
+  }
+
+  return line;
 }
 
 QMapbox::CoordinatesCollections model_to_collection(

@@ -90,6 +90,25 @@ static void update_line_data(const UIState *s, const cereal::ModelDataV2::XYZTDa
   assert(pvd->cnt < std::size(pvd->v));
 }
 
+static void update_line_data(const UIState *s, std::vector<vec3> &line,
+                             float y_off, float z_off, line_vertices_data *pvd, int max_idx) {
+  vertex_data *v = &pvd->v[0];
+  int m = std::min(max_idx, (int)line.size() - 1);
+  for (int i = 0; i <= m; i++) {
+    v += calib_frame_to_full_frame(s, line[i].v[0], line[i].v[1] - y_off, line[i].v[2] + z_off, v);
+  }
+  for (int i = m; i >= 0; i--) {
+    v += calib_frame_to_full_frame(s, line[i].v[0], line[i].v[1] + y_off, line[i].v[2] + z_off, v);
+  }
+  pvd->cnt = v - pvd->v;
+  assert(pvd->cnt < std::size(pvd->v));
+}
+
+static void update_ar_nav(UIState *s) {
+  UIScene &scene = s->scene;
+  update_line_data(s, s->ar_nav_points, 0.25, 1.22, &scene.ar_nav_vertices, TRAJECTORY_SIZE - 1);
+}
+
 static void update_model(UIState *s, const cereal::ModelDataV2::Reader &model) {
   UIScene &scene = s->scene;
   auto model_position = model.getPosition();
@@ -160,6 +179,10 @@ static void update_state(UIState *s) {
         scene.view_from_calib.v[i*3 + j] = view_from_calib(i,j);
       }
     }
+  }
+
+  if (s->ar_nav_points.size() > 0){
+    update_ar_nav(s);
   }
   if (sm.updated("modelV2")) {
     update_model(s, sm["modelV2"].getModelV2());

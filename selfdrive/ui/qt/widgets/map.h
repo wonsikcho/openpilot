@@ -1,5 +1,6 @@
 #pragma once
 
+#include <eigen3/Eigen/Dense>
 #include <QGeoCoordinate>
 #include <QGeoManeuver>
 #include <QGeoRouteRequest>
@@ -77,6 +78,7 @@ private slots:
 signals:
   void distanceChanged(float distance);
   void instructionsChanged(QMap<QString, QVariant> banner);
+  void updateAR(QList<Eigen::Vector3d> path);
 };
 
 class MapInstructions : public QWidget {

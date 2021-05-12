@@ -13,6 +13,10 @@ const float METER_2_FOOT = 3.28084;
 #define RAD2DEG(x) ((x) * 180.0 / M_PI)
 
 QGeoCoordinate to_QGeoCoordinate(const QMapbox::Coordinate &in);
+QList<Eigen::Vector3d> coordinates_to_camera_view(
+  const cereal::LiveLocationKalman::Measurement::Reader &calibratedOrientationECEF,
+  const cereal::LiveLocationKalman::Measurement::Reader &positionECEF,
+  const QList<QGeoCoordinate> &coordinates);
 QMapbox::CoordinatesCollections model_to_collection(
   const cereal::LiveLocationKalman::Measurement::Reader &calibratedOrientationECEF,
   const cereal::LiveLocationKalman::Measurement::Reader &positionECEF,

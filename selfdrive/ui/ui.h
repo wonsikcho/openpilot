@@ -96,6 +96,7 @@ typedef struct UIScene {
   float lane_line_probs[4];
   float road_edge_stds[2];
   line_vertices_data track_vertices;
+  line_vertices_data ar_nav_vertices;
   line_vertices_data lane_line_vertices[4];
   line_vertices_data road_edge_vertices[2];
 
@@ -123,6 +124,7 @@ typedef struct UIState {
   std::map<std::string, int> images;
 
   std::unique_ptr<SubMaster> sm;
+  std::vector<vec3> ar_nav_points;
 
   UIStatus status;
   UIScene scene;

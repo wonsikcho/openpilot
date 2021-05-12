@@ -2,6 +2,7 @@
 
 #include <map>
 
+#include <eigen3/Eigen/Dense>
 #include <QSoundEffect>
 #include <QtWidgets>
 
@@ -73,6 +74,8 @@ private:
 
 public slots:
   void update(const UIState &s);
+  void updateAR(QList<Eigen::Vector3d> path);
+
 };
 
 // container for all onroad widgets

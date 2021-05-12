@@ -169,6 +169,10 @@ static void ui_draw_vision_lane_lines(UIState *s) {
   }
   // paint path
   ui_draw_line(s, scene.track_vertices, nullptr, &track_bg);
+
+  // Paint navigation
+  NVGcolor color = nvgRGBAf(0.54, 0.69, 0.816, 1.0);
+  ui_draw_line(s, scene.ar_nav_vertices, &color, nullptr);
 }
 
 // Draw all world space objects.
