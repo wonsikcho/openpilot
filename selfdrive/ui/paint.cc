@@ -132,7 +132,7 @@ static void draw_frame(UIState *s) {
                    0, GL_RGB, GL_UNSIGNED_BYTE, s->last_frame->addr);
     }
 #ifdef QCOM2
-    glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, s->texture[s->last_frame->idx]->img_khr);
+    glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, s->texture[s->last_frame->idx]->img_khr);
 #endif
   }
 
