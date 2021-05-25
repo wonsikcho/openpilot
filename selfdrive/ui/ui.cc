@@ -76,6 +76,7 @@ static void update_leads(UIState *s, const cereal::RadarState::Reader &radar_sta
 
 static void update_line_data(const UIState *s, const cereal::ModelDataV2::XYZTData::Reader &line,
                              float y_off, float z_off, line_vertices_data *pvd, int max_idx) {
+  return;
   const auto line_x = line.getX(), line_y = line.getY(), line_z = line.getZ();
   vertex_data *v = &pvd->v[0];
   for (int i = 0; i <= max_idx; i++) {
@@ -129,7 +130,7 @@ static void update_state(UIState *s) {
   SubMaster &sm = *(s->sm);
   UIScene &scene = s->scene;
 
-  if (sm.updated("radarState")) {
+  if (sm.updated("radarState") && false) {
     std::optional<cereal::ModelDataV2::XYZTData::Reader> line;
     if (sm.rcv_frame("modelV2") > 0) {
       line = sm["modelV2"].getModelV2().getPosition();
@@ -154,7 +155,7 @@ static void update_state(UIState *s) {
     }
   }
   if (sm.updated("modelV2")) {
-    update_model(s, sm["modelV2"].getModelV2());
+    if (false) update_model(s, sm["modelV2"].getModelV2());
   }
   if (sm.updated("pandaState")) {
     auto pandaState = sm["pandaState"].getPandaState();
@@ -212,7 +213,7 @@ static void update_params(UIState *s) {
 static void update_vision(UIState *s) {
   if (!s->vipc_client->connected && s->scene.started) {
     if (s->vipc_client->connect(false)){
-      ui_init_vision(s);
+      if (false) ui_init_vision(s);
     }
   }
 
@@ -302,7 +303,7 @@ void QUIState::update() {
   update_sockets(&ui_state);
   update_state(&ui_state);
   update_status(&ui_state);
-  update_vision(&ui_state);
+  if (false) update_vision(&ui_state);
 
   if (ui_state.scene.started != started_prev || ui_state.sm->frame == 1) {
     started_prev = ui_state.scene.started;
