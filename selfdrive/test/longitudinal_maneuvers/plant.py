@@ -46,7 +46,7 @@ class Plant():
     # lead car
     self.distance_lead = distance_lead
 
-    self.rk = Ratekeeper(rate, print_delay_threshold=100)
+    self.rk = Ratekeeper(rate, print_delay_threshold=100.0)
     self.ts = 1./rate
     time.sleep(1)
     self.sm = messaging.SubMaster(['longitudinalPlan'], poll=['longitudinalPlan'])
