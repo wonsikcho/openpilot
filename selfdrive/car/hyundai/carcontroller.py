@@ -50,7 +50,7 @@ class CarController():
     self.steer_rate_limited = new_steer != apply_steer
 
     # disable when temp fault is active
-    lkas_active = enabled and not CS.out.steerWarning and CS.out.vEgo > CS.minSteerSpeed
+    lkas_active = enabled and not CS.out.steerWarning and CS.out.vEgo > CS.CP.minSteerSpeed
 
     # fix for Genesis hard fault at low speed
     if CS.out.vEgo < 16.7 and self.car_fingerprint == CAR.HYUNDAI_GENESIS:
