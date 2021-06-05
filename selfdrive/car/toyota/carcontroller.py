@@ -33,24 +33,35 @@ def coast_accel(speed: float) -> float:  # given a speed, output coasting accele
   return interp(speed, *zip(*points))
 
 
-def compute_gb_pedal(accel: float, speed: float, braking: bool) -> float:
+def compute_gb_pedal(accel: float, speed: float) -> float:
   def accel_to_gas(a_ego, v_ego):
     _a3, _a4, _a5, _a6, _a7, _a9, _s1, _s2, _s3, _offset = [0.002377321579025474, 0.07381215915662231, -0.007963770877144415, 0.15947881013161083, -0.010037975860880363, -0.1334422448911381, 0.0019638460320592194, -0.0018659661194108225, 0.021688122969402018, 0.027007983705385548]
-    speed_part = (_s1 * a_ego + _s2) * v_ego ** 2 + _s3 * v_ego
-    accel_part = _a7 * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego
-    return speed_part + accel_part + _offset
+
+    speed_offset = (_s1 * a_ego + _s2) * v_ego ** 2 + _s3 * v_ego + _offset
+    # FIXME: acceleration -> gas should be perfectly linear, HOWEVER acceleration response might change non-linearly based on speed
+    # FIXME instead of using a polynomial for accel, how about we use a polynomial on speed and use that as a coefficient for a linear accel function?
+    # FIXME: something like this: accel_part = (c1 * v_ego ** 2 + c2 * v_ego + c3) * a_ego
+    accel_part = (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego
+    # accel_part = _a7 * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego  # todo: original accel function
+
+    return accel_part + speed_offset
 
   gas = 0.
   coast = coast_accel(speed)
-  coast_spread = 0.1
+  # coast_spread = 0.1
+  coast_tolerance = 0.0
 
-  if accel > coast - coast_spread:
+  # TODO: see if it works fine without ramping
+  if accel > coast - coast_tolerance:
     gas = accel_to_gas(accel, speed)
 
-    if accel < coast + coast_spread:  # ramp up gas output smoothly from coast accel to coast + spread
-      gas *= interp(accel, [coast - coast_spread, coast + coast_spread], [0, 1]) ** 2
+    # if accel < coast + coast_spread:  # ramp up gas output smoothly from coast accel to coast + spread
+    #   gas *= interp(accel, [coast - coast_spread, coast + coast_spread], [0, 1]) ** 2
 
-  return gas if not braking else gas / 2.0  # give car chance to release brakes when resuming
+  # TODO: brakes usually aren't released quick enough, eg. openpilot can be requesting a small amount of speed for quite a while,
+  # TODO: but the car never inches up. integral should take care of it, but it doesn't always, and causes a spat of acceleration (jerky)
+  # TODO: find a way to smoothly ramp up gas without being too slow, and don't want to hardcode any custom logic
+  return gas
 
 
 class CarController():
@@ -90,7 +101,7 @@ class CarController():
       if self.use_interceptor and enabled:
         # only send negative accel when using interceptor. gas handles acceleration
         # +0.06 offset to reduce ABS pump usage when OP is engaged
-        interceptor_gas_cmd = compute_gb_pedal(pcm_accel_cmd * CarControllerParams.ACCEL_SCALE, CS.out.vEgo, CS.out.brakeLights)
+        interceptor_gas_cmd = compute_gb_pedal(pcm_accel_cmd * CarControllerParams.ACCEL_SCALE, CS.out.vEgo)
         pcm_accel_cmd = 0.06 - actuators.brake
 
     interceptor_gas_cmd = clip(interceptor_gas_cmd, 0., 1.)
