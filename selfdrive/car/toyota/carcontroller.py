@@ -1,5 +1,5 @@
 from cereal import car
-from common.numpy_fast import clip
+from common.numpy_fast import clip, interp
 from selfdrive.car import apply_toyota_steer_torque_limits, create_gas_command, make_can_msg
 from selfdrive.car.toyota.toyotacan import create_steer_command, create_ui_command, \
                                            create_accel_command, create_acc_cancel_command, \
@@ -24,6 +24,33 @@ def accel_hysteresis(accel, accel_steady, enabled):
   accel = accel_steady
 
   return accel, accel_steady
+
+
+def coast_accel(speed: float) -> float:  # given a speed, output coasting acceleration
+  points = [[0.01, 0.0], [.21, .425], [.3107, .535], [.431, .555],
+            [.777, .438], [1.928, 0.265], [2.66, -0.179],
+            [3.336, -0.250], [MIN_ACC_SPEED, -0.145]]
+  return interp(speed, *zip(*points))
+
+
+def compute_gb_pedal(accel: float, speed: float, braking: bool) -> float:
+  def accel_to_gas(a_ego, v_ego):
+    _a3, _a4, _a5, _a6, _a7, _a9, _s1, _s2, _s3, _offset = [0.002377321579025474, 0.07381215915662231, -0.007963770877144415, 0.15947881013161083, -0.010037975860880363, -0.1334422448911381, 0.0019638460320592194, -0.0018659661194108225, 0.021688122969402018, 0.027007983705385548]
+    speed_part = (_s1 * a_ego + _s2) * v_ego ** 2 + _s3 * v_ego
+    accel_part = _a7 * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego
+    return speed_part + accel_part + _offset
+
+  gas = 0.
+  coast = coast_accel(speed)
+  coast_spread = 0.1
+
+  if accel > coast - coast_spread:
+    gas = accel_to_gas(accel, speed)
+
+    if accel < coast + coast_spread:  # ramp up gas output smoothly from coast accel to coast + spread
+      gas *= interp(accel, [coast - coast_spread, coast + coast_spread], [0, 1]) ** 2
+
+  return gas if not braking else gas / 2.0  # give car chance to release brakes when resuming
 
 
 class CarController():
@@ -63,9 +90,10 @@ class CarController():
       if self.use_interceptor and enabled:
         # only send negative accel when using interceptor. gas handles acceleration
         # +0.06 offset to reduce ABS pump usage when OP is engaged
-        interceptor_gas_cmd = clip(actuators.gas, 0., 1.)
+        interceptor_gas_cmd = compute_gb_pedal(pcm_accel_cmd * CarControllerParams.ACCEL_SCALE, CS.out.vEgo, CS.out.brakeLights)
         pcm_accel_cmd = 0.06 - actuators.brake
 
+    interceptor_gas_cmd = clip(interceptor_gas_cmd, 0., 1.)
     pcm_accel_cmd, self.accel_steady = accel_hysteresis(pcm_accel_cmd, self.accel_steady, enabled)
     pcm_accel_cmd = clip(pcm_accel_cmd * CarControllerParams.ACCEL_SCALE, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
 
