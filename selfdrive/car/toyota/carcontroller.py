@@ -26,6 +26,7 @@ def accel_hysteresis(accel, accel_steady, enabled):
   return accel, accel_steady
 
 
+# TODO: gather more data at all speeds, there's no reason we should decelerate less at higher speeds when coasting
 def coast_accel(speed: float) -> float:  # given a speed, output coasting acceleration
   points = [[0.01, 0.0], [.21, .425], [.3107, .535], [.431, .555],
             [.777, .438], [1.928, 0.265], [2.66, -0.179],
@@ -34,17 +35,11 @@ def coast_accel(speed: float) -> float:  # given a speed, output coasting accele
 
 
 def compute_gb_pedal(accel: float, speed: float) -> float:
-  def accel_to_gas(a_ego, v_ego):
-    _a3, _a4, _a5, _a6, _a7, _a9, _s1, _s2, _s3, _offset = [0.002377321579025474, 0.07381215915662231, -0.007963770877144415, 0.15947881013161083, -0.010037975860880363, -0.1334422448911381, 0.0019638460320592194, -0.0018659661194108225, 0.021688122969402018, 0.027007983705385548]
-
-    speed_offset = (_s1 * a_ego + _s2) * v_ego ** 2 + _s3 * v_ego + _offset
-    # FIXME: acceleration -> gas should be perfectly linear, HOWEVER acceleration response might change non-linearly based on speed
-    # FIXME instead of using a polynomial for accel, how about we use a polynomial on speed and use that as a coefficient for a linear accel function?
-    # FIXME: something like this: accel_part = (c1 * v_ego ** 2 + c2 * v_ego + c3) * a_ego
-    # accel_part = (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego
-    accel_part = _a7 * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego  # todo: original accel function
-
-    return accel_part + speed_offset
+  def accel_to_gas(_a_ego, _v_ego):
+    c1, c2, c3, c4, c5, c6 = [-0.0018705298984563084, 0.02114654769128651, 0.013097655866657579, 0.001969107781263706, -0.00572634369922001, 0.10785843778190311]
+    _gas = (c4 * _v_ego ** 2 + c5 * _v_ego + c6) * _a_ego
+    _gas_offset = c1 * _v_ego ** 2 + c2 * _v_ego + c3
+    return _gas + _gas_offset
 
   gas = 0.
   coast = coast_accel(speed)
