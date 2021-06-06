@@ -41,8 +41,8 @@ def compute_gb_pedal(accel: float, speed: float) -> float:
     # FIXME: acceleration -> gas should be perfectly linear, HOWEVER acceleration response might change non-linearly based on speed
     # FIXME instead of using a polynomial for accel, how about we use a polynomial on speed and use that as a coefficient for a linear accel function?
     # FIXME: something like this: accel_part = (c1 * v_ego ** 2 + c2 * v_ego + c3) * a_ego
-    accel_part = (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego
-    # accel_part = _a7 * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego  # todo: original accel function
+    # accel_part = (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego
+    accel_part = _a7 * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego  # todo: original accel function
 
     return accel_part + speed_offset
 
